@@ -1,0 +1,33 @@
+# Dependabot configuration for automated dependency updates
+# This helps keep dependencies up-to-date and secure
+
+version: 2
+updates:
+  # Enable version updates for npm
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    # Group updates for better management
+    groups:
+      dependencies:
+        patterns:
+          - "*"
+    # Add labels to PRs
+    labels:
+      - "dependencies"
+      - "security"
+    # Automatically rebase PRs when conflicts occur
+    rebase-strategy: "auto"
+    
+  # Enable security updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "github-actions"
