@@ -19,8 +19,6 @@ updates:
     labels:
       - "dependencies"
       - "security"
-    # Automatically rebase PRs when conflicts occur
-    rebase-strategy: "auto"
     
   # Enable security updates for GitHub Actions
   - package-ecosystem: "github-actions"
