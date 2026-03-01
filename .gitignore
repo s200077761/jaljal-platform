@@ -47,3 +47,7 @@ test
 prompt
 
 server.log
+
+# database files
+*.db
+*.db-journal

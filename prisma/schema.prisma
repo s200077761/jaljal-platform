@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,20 +7,80 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
+model AIModel {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  name          String
+  type          String   // language | vision | multimodal
+  status        String   @default("active") // active | training | inactive
+  accuracy      Float    @default(0)
+  performance   Float    @default(0)
+  customization Float    @default(0)
+  openSource    Boolean  @default(true)
+  description   String
+  version       String   @default("1.0.0")
+  capabilities  String   @default("[]") // JSON array as string (SQLite)
+  languages     String   @default("[]") // JSON array as string (SQLite)
+  maxTokens     Int      @default(2048)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  metrics   ModelMetric[]
+  usageLogs UsageLog[]
+  alerts    Alert[]
+}
+
+model ModelMetric {
+  id           String   @id @default(cuid())
+  modelId      String
+  model        AIModel  @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  accuracy     Float
+  responseTime Float
+  throughput   Float
+  cpuUsage     Float
+  memoryUsage  Float
+  errorRate    Float
+  activeUsers  Int
+  createdAt    DateTime @default(now())
+}
+
+model UsageLog {
+  id               String   @id @default(cuid())
+  modelId          String
+  model            AIModel  @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  messageLength    Int
+  responseLength   Int
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  createdAt        DateTime @default(now())
+}
+
+model Alert {
   id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
+  type      String   // warning | error | success
+  message   String
+  modelId   String
+  model     AIModel  @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  name      String
+  key       String   @unique
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model Post {
+model Webhook {
   id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
+  url       String
+  events    String   @default("[]") // JSON array as string
+  secret    String?
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
