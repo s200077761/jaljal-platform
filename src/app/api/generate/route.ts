@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
     // توليد الصورة باستخدام نموذج الذكاء الاصطناعي
     const response = await zai.images.generations.create({
       prompt: enhancedPrompt,
-      size: size as string,
-      quality: 'high'
+      size: size as "1024x1024" | "768x1344" | "864x1152" | "1344x768" | "1152x864" | "1440x720" | "720x1440",
+      // quality parameter depends on SDK version
     })
 
     const imageBase64 = response.data[0]?.base64
@@ -52,11 +52,12 @@ export async function POST(request: NextRequest) {
       }
     })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Failed to generate image'
     console.error('Error in image generation API:', error)
     return NextResponse.json({
       success: false,
-      error: error.message || 'Failed to generate image'
+      error: msg
     }, { status: 500 })
   }
 }

@@ -31,11 +31,12 @@ export async function POST(request: NextRequest) {
       }
     })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Failed to perform search'
     console.error('Error in search API:', error)
     return NextResponse.json({
       success: false,
-      error: error.message || 'Failed to perform search'
+      error: msg
     }, { status: 500 })
   }
 }

@@ -1,181 +1,177 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { 
-  Code, 
-  Copy, 
-  Check, 
-  Terminal, 
-  Globe, 
-  Shield, 
-  Zap,
+import {
+  Code,
+  Copy,
+  Check,
+  Terminal,
+  Globe,
+  Shield,
   Key,
   BookOpen,
   Download,
-  Upload,
   Settings,
   Play,
   FileText,
-  Database,
-  Cloud
+  Cloud,
+  Plus,
+  Trash2,
 } from 'lucide-react'
 
-interface APIEndpoint {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE'
-  path: string
-  description: string
-  parameters: Array<{
-    name: string
-    type: string
-    required: boolean
-    description: string
-  }>
-  example: string
-}
-
-interface Integration {
+interface ApiKeyDisplay {
   id: string
   name: string
-  category: string
-  description: string
-  difficulty: 'easy' | 'medium' | 'hard'
-  languages: string[]
-  setupTime: string
+  key: string
+  active: boolean
+  createdAt: string
 }
 
-const apiEndpoints: APIEndpoint[] = [
+interface WebhookDisplay {
+  id: string
+  url: string
+  events: string[]
+  active: boolean
+  createdAt: string
+}
+
+const apiEndpoints = [
   {
-    method: 'POST',
-    path: '/api/v1/models/chat',
+    method: 'GET' as const,
+    path: '/api/models',
+    description: 'الحصول على قائمة جميع النماذج من قاعدة البيانات',
+    parameters: [
+      { name: 'slug', type: 'string', required: false, description: 'تصفية حسب معرف النموذج' },
+      { name: 'stats', type: 'boolean', required: false, description: 'إرجاع إحصائيات لوحة التحكم' },
+      { name: 'metrics', type: 'string', required: false, description: 'إرجاع قياسات الأداء (all أو model ID)' },
+    ],
+  },
+  {
+    method: 'POST' as const,
+    path: '/api/models',
+    description: 'إنشاء أو تحديث نموذج أو تسجيل قياس أداء',
+    parameters: [
+      { name: 'action', type: 'string', required: true, description: 'create | update | record-metric' },
+      { name: 'modelId', type: 'string', required: false, description: 'معرف النموذج (للتحديث والقياسات)' },
+      { name: 'config', type: 'object', required: true, description: 'بيانات النموذج أو القياس' },
+    ],
+  },
+  {
+    method: 'POST' as const,
+    path: '/api/chat',
     description: 'إرسال رسالة إلى نموذج الدردشة',
     parameters: [
-      {
-        name: 'model_id',
-        type: 'string',
-        required: true,
-        description: 'معرف النموذج المستخدم'
-      },
-      {
-        name: 'message',
-        type: 'string',
-        required: true,
-        description: 'نص الرسالة المراد إرسالها'
-      },
-      {
-        name: 'context',
-        type: 'object',
-        required: false,
-        description: 'سياق المحادثة السابق'
-      }
+      { name: 'modelId', type: 'string', required: true, description: 'معرف النموذج (slug)' },
+      { name: 'message', type: 'string', required: true, description: 'نص الرسالة' },
+      { name: 'context', type: 'object', required: false, description: 'سياق المحادثة' },
     ],
-    example: `curl -X POST https://api.example.com/api/v1/models/chat \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "model_id": "neuralchat-x",
-    "message": "مرحباً، كيف يمكنني مساعدتك؟",
-    "context": {}
-  }'`
   },
   {
-    method: 'GET',
-    path: '/api/v1/models',
-    description: 'الحصول على قائمة جميع النماذج المتاحة',
+    method: 'GET' as const,
+    path: '/api/alerts',
+    description: 'الحصول على التنبيهات النشطة',
     parameters: [
-      {
-        name: 'category',
-        type: 'string',
-        required: false,
-        description: 'تصفية حسب فئة النموذج'
-      },
-      {
-        name: 'status',
-        type: 'string',
-        required: false,
-        description: 'تصفية حسب حالة النموذج'
-      }
+      { name: 'resolved', type: 'boolean', required: false, description: 'تصفية حسب حالة الحل' },
     ],
-    example: `curl -X GET "https://api.example.com/api/v1/models?category=language" \\
-  -H "Authorization: Bearer YOUR_API_KEY"`
   },
-  {
-    method: 'POST',
-    path: '/api/v1/models/train',
-    description: 'بدء تدريب نموذج مخصص',
-    parameters: [
-      {
-        name: 'base_model',
-        type: 'string',
-        required: true,
-        description: 'النموذج الأساسي للتدريب'
-      },
-      {
-        name: 'training_data',
-        type: 'file',
-        required: true,
-        description: 'بيانات التدريب'
-      },
-      {
-        name: 'config',
-        type: 'object',
-        required: false,
-        description: 'إعدادات التدريب المخصصة'
-      }
-    ],
-    example: `curl -X POST https://api.example.com/api/v1/models/train \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -F "base_model=neuralchat-x" \\
-  -F "training_data=@training_data.json"`
-  }
-]
-
-const integrations: Integration[] = [
-  {
-    id: '1',
-    name: 'Python SDK',
-    category: 'برمجة',
-    description: 'مكتبة Python سهلة الاستخدام للتكامل مع النماذج',
-    difficulty: 'easy',
-    languages: ['Python'],
-    setupTime: '5 دقائق'
-  },
-  {
-    id: '2',
-    name: 'JavaScript SDK',
-    category: 'برمجة',
-    description: 'مكتبة JavaScript للويب و Node.js',
-    difficulty: 'easy',
-    languages: ['JavaScript', 'TypeScript'],
-    setupTime: '3 دقائق'
-  },
-  {
-    id: '3',
-    name: 'REST API',
-    category: 'برمجة',
-    description: 'واجهة برمجية قياسية للتكامل مع أي لغة',
-    difficulty: 'medium',
-    languages: ['All'],
-    setupTime: '10 دقائق'
-  },
-  {
-    id: '4',
-    name: 'Webhook Integration',
-    category: 'تكامل',
-    description: 'تكامل مع الأنظمة الخارجية عبر Webhooks',
-    difficulty: 'medium',
-    languages: ['All'],
-    setupTime: '15 دقائق'
-  }
 ]
 
 export default function APIIntegration() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
   const [selectedLanguage, setSelectedLanguage] = useState<string>('python')
-  const [apiKey, setApiKey] = useState<string>('sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
+  const [apiKeys, setApiKeys] = useState<ApiKeyDisplay[]>([])
+  const [webhooks, setWebhooks] = useState<WebhookDisplay[]>([])
+  const [newKeyName, setNewKeyName] = useState('')
+  const [webhookUrl, setWebhookUrl] = useState('')
+  const [webhookEvents, setWebhookEvents] = useState<string[]>([])
+
+  useEffect(() => {
+    fetchApiKeys()
+    fetchWebhooks()
+  }, [])
+
+  const fetchApiKeys = async () => {
+    try {
+      const res = await fetch('/api/keys')
+      if (res.ok) {
+        const json = await res.json()
+        if (json.success) setApiKeys(json.data)
+      }
+    } catch { /* ignore */ }
+  }
+
+  const fetchWebhooks = async () => {
+    try {
+      const res = await fetch('/api/webhooks')
+      if (res.ok) {
+        const json = await res.json()
+        if (json.success) setWebhooks(json.data)
+      }
+    } catch { /* ignore */ }
+  }
+
+  const handleCreateKey = async () => {
+    if (!newKeyName.trim()) return
+    try {
+      const res = await fetch('/api/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newKeyName }),
+      })
+      if (res.ok) {
+        setNewKeyName('')
+        fetchApiKeys()
+      }
+    } catch { /* ignore */ }
+  }
+
+  const handleRevokeKey = async (keyId: string) => {
+    try {
+      await fetch('/api/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'revoke', keyId }),
+      })
+      fetchApiKeys()
+    } catch { /* ignore */ }
+  }
+
+  const handleSaveWebhook = async () => {
+    if (!webhookUrl.trim() || webhookEvents.length === 0) return
+    try {
+      const res = await fetch('/api/webhooks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: webhookUrl, events: webhookEvents }),
+      })
+      if (res.ok) {
+        setWebhookUrl('')
+        setWebhookEvents([])
+        fetchWebhooks()
+      }
+    } catch { /* ignore */ }
+  }
+
+  const handleDeleteWebhook = async (webhookId: string) => {
+    try {
+      await fetch('/api/webhooks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', webhookId }),
+      })
+      fetchWebhooks()
+    } catch { /* ignore */ }
+  }
+
+  const toggleWebhookEvent = (event: string) => {
+    setWebhookEvents(prev =>
+      prev.includes(event) ? prev.filter(e => e !== event) : [...prev, event]
+    )
+  }
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text)
@@ -193,383 +189,326 @@ export default function APIIntegration() {
     }
   }
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'easy': return 'bg-green-100 text-green-800'
-      case 'medium': return 'bg-yellow-100 text-yellow-800'
-      case 'hard': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
-  }
-
-  const codeExamples = {
+  const codeExamples: Record<string, string> = {
     python: `import requests
 
-# إعداد العميل
-client = requests.Session()
-client.headers.update({
-    'Authorization': f'Bearer {apiKey}',
-    'Content-Type': 'application/json'
-})
+# الحصول على قائمة النماذج من قاعدة البيانات
+response = requests.get('http://localhost:3000/api/models')
+models = response.json()
+print(f"النماذج المتاحة: {len(models['data'])}")
 
-# إرسال رسالة
-response = client.post('https://api.example.com/api/v1/models/chat', json={
-    'model_id': 'neuralchat-x',
+# إرسال رسالة للدردشة
+chat_response = requests.post('http://localhost:3000/api/chat', json={
+    'modelId': 'neuralchat-x',
     'message': 'مرحباً، كيف يمكنني مساعدتك؟'
 })
+print(chat_response.json()['data']['response'])`,
+    javascript: `// الحصول على قائمة النماذج من قاعدة البيانات
+const modelsRes = await fetch('/api/models');
+const { data: models } = await modelsRes.json();
+console.log('النماذج المتاحة:', models.length);
 
-result = response.json()
-print(result['response'])`,
-    javascript: `const axios = require('axios');
-
-// إعداد العميل
-const client = axios.create({
-  baseURL: 'https://api.example.com',
-  headers: {
-    'Authorization': \`Bearer \${apiKey}\`,
-    'Content-Type': 'application/json'
-  }
+// إرسال رسالة للدردشة
+const chatRes = await fetch('/api/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    modelId: 'neuralchat-x',
+    message: 'مرحباً، كيف يمكنني مساعدتك؟'
+  })
 });
+const { data } = await chatRes.json();
+console.log(data.response);`,
+    curl: `# الحصول على قائمة النماذج
+curl http://localhost:3000/api/models
 
-// إرسال رسالة
-const response = await client.post('/api/v1/models/chat', {
-  model_id: 'neuralchat-x',
-  message: 'مرحباً، كيف يمكنني مساعدتك؟'
-});
+# الحصول على إحصائيات لوحة التحكم
+curl "http://localhost:3000/api/models?stats=true"
 
-console.log(response.data.response);`,
-    curl: `curl -X POST https://api.example.com/api/v1/models/chat \\
-  -H "Authorization: Bearer ${apiKey}" \\
+# إرسال رسالة للدردشة
+curl -X POST http://localhost:3000/api/chat \\
   -H "Content-Type: application/json" \\
-  -d '{
-    "model_id": "neuralchat-x",
-    "message": "مرحباً، كيف يمكنني مساعدتك؟"
-  }'`
+  -d '{"modelId": "neuralchat-x", "message": "مرحباً"}'`,
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-primary rounded-xl">
-                <Code className="w-8 h-8 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">مركز جلاجل للتكامل البرمجي</h1>
-                <p className="text-gray-600 mt-1">واجهات برمجية وأدوات سهلة التكامل مع أنظمتك من جلاجل</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Key className="w-4 h-4 text-gray-500" />
-              <span className="text-sm text-gray-600">API Key:</span>
-              <code className="bg-gray-100 px-2 py-1 rounded text-sm">{apiKey}</code>
-              <Button variant="outline" size="sm">
-                <Settings className="w-4 h-4" />
-              </Button>
-            </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-primary rounded-xl">
+            <Code className="w-8 h-8 text-primary-foreground" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">مركز التكامل البرمجي</h2>
+            <p className="text-gray-600 mt-1">واجهات برمجية حقيقية مرتبطة بقاعدة البيانات</p>
           </div>
         </div>
+      </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">واجهات API</p>
-                  <p className="text-2xl font-bold text-gray-900">12</p>
-                </div>
-                <Terminal className="w-8 h-8 text-blue-500" />
+      {/* Quick Stats — computed */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">نقاط API</p>
+                <p className="text-2xl font-bold text-gray-900">{apiEndpoints.length}</p>
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">SDKs</p>
-                  <p className="text-2xl font-bold text-gray-900">8</p>
-                </div>
-                <Database className="w-8 h-8 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">اللغات المدعومة</p>
-                  <p className="text-2xl font-bold text-gray-900">15+</p>
-                </div>
-                <Globe className="w-8 h-8 text-purple-500" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">معدل النجاح</p>
-                  <p className="text-2xl font-bold text-gray-900">99.9%</p>
-                </div>
-                <Shield className="w-8 h-8 text-red-500" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Tabs defaultValue="endpoints" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="endpoints">نقاط النهاية</TabsTrigger>
-            <TabsTrigger value="sdks">مكتبات البرمجة</TabsTrigger>
-            <TabsTrigger value="examples">أمثلة برمجية</TabsTrigger>
-            <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="endpoints">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Terminal className="w-5 h-5" />
-                  نقاط النهاية البرمجية
-                </CardTitle>
-                <CardDescription>واجهات API متاحة للاستخدام</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {apiEndpoints.map((endpoint, index) => (
-                    <div key={index} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <Badge className={getMethodColor(endpoint.method)}>
-                            {endpoint.method}
-                          </Badge>
-                          <code className="text-sm bg-gray-100 px-2 py-1 rounded">
-                            {endpoint.path}
-                          </code>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyToClipboard(endpoint.example, `endpoint-${index}`)}
-                        >
-                          {copiedCode === `endpoint-${index}` ? (
-                            <Check className="w-4 h-4" />
-                          ) : (
-                            <Copy className="w-4 h-4" />
-                          )}
-                        </Button>
-                      </div>
-                      
-                      <p className="text-gray-700 mb-3">{endpoint.description}</p>
-                      
-                      <div className="mb-3">
-                        <h4 className="font-semibold mb-2">المعلمات:</h4>
-                        <div className="space-y-1">
-                          {endpoint.parameters.map((param, paramIndex) => (
-                            <div key={paramIndex} className="flex items-center gap-2 text-sm">
-                              <code className="bg-gray-100 px-2 py-1 rounded">
-                                {param.name}
-                              </code>
-                              <Badge variant="outline" className="text-xs">
-                                {param.type}
-                              </Badge>
-                              {param.required && (
-                                <Badge variant="destructive" className="text-xs">
-                                  مطلوب
-                                </Badge>
-                              )}
-                              <span className="text-gray-600">- {param.description}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <h4 className="font-semibold mb-2">مثال:</h4>
-                        <pre className="bg-gray-900 text-gray-100 p-3 rounded-lg text-sm overflow-x-auto">
-                          <code>{endpoint.example}</code>
-                        </pre>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="sdks">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {integrations.map((integration) => (
-                <Card key={integration.id}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{integration.name}</CardTitle>
-                      <Badge className={getDifficultyColor(integration.difficulty)}>
-                        {integration.difficulty === 'easy' ? 'سهل' : 
-                         integration.difficulty === 'medium' ? 'متوسط' : 'صعب'}
-                      </Badge>
-                    </div>
-                    <CardDescription>{integration.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center gap-4 text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        <span>{integration.setupTime}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Code className="w-4 h-4" />
-                        <span>{integration.languages.join(', ')}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button className="flex-1">
-                        <Download className="w-4 h-4 mr-2" />
-                        تحميل
-                      </Button>
-                      <Button variant="outline" className="flex-1">
-                        <BookOpen className="w-4 h-4 mr-2" />
-                        documentation
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              <Terminal className="w-8 h-8 text-blue-500" />
             </div>
-          </TabsContent>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">مفاتيح API</p>
+                <p className="text-2xl font-bold text-gray-900">{apiKeys.length}</p>
+              </div>
+              <Key className="w-8 h-8 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Webhooks</p>
+                <p className="text-2xl font-bold text-gray-900">{webhooks.length}</p>
+              </div>
+              <Globe className="w-8 h-8 text-purple-500" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">الحالة</p>
+                <p className="text-2xl font-bold text-green-600">متصل</p>
+              </div>
+              <Shield className="w-8 h-8 text-red-500" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-          <TabsContent value="examples">
-            <Card>
-              <CardHeader>
-                <CardTitle>أمثلة برمجية</CardTitle>
-                <CardDescription>أكواد جاهزة للبدء</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-4">
-                  <div className="flex gap-2">
-                    {Object.keys(codeExamples).map((lang) => (
-                      <Button
-                        key={lang}
-                        variant={selectedLanguage === lang ? 'default' : 'outline'}
-                        onClick={() => setSelectedLanguage(lang)}
-                      >
-                        {lang.charAt(0).toUpperCase() + lang.slice(1)}
-                      </Button>
-                    ))}
+      <Tabs defaultValue="endpoints" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="endpoints">نقاط النهاية</TabsTrigger>
+          <TabsTrigger value="keys">مفاتيح API</TabsTrigger>
+          <TabsTrigger value="examples">أمثلة برمجية</TabsTrigger>
+          <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="endpoints">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Terminal className="w-5 h-5" />
+                نقاط النهاية البرمجية
+              </CardTitle>
+              <CardDescription>واجهات API حقيقية تعمل مع قاعدة البيانات</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {apiEndpoints.map((endpoint, index) => (
+                  <div key={index} className="border rounded-lg p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Badge className={getMethodColor(endpoint.method)}>
+                        {endpoint.method}
+                      </Badge>
+                      <code className="text-sm bg-gray-100 px-2 py-1 rounded">
+                        {endpoint.path}
+                      </code>
+                    </div>
+
+                    <p className="text-gray-700 mb-3">{endpoint.description}</p>
+
+                    <div>
+                      <h4 className="font-semibold mb-2">المعلمات:</h4>
+                      <div className="space-y-1">
+                        {endpoint.parameters.map((param, paramIndex) => (
+                          <div key={paramIndex} className="flex items-center gap-2 text-sm">
+                            <code className="bg-gray-100 px-2 py-1 rounded">{param.name}</code>
+                            <Badge variant="outline" className="text-xs">{param.type}</Badge>
+                            {param.required && (
+                              <Badge variant="destructive" className="text-xs">مطلوب</Badge>
+                            )}
+                            <span className="text-gray-600">- {param.description}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                
-                <div className="relative">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="absolute top-2 left-2 z-10"
-                    onClick={() => copyToClipboard(codeExamples[selectedLanguage as keyof typeof codeExamples], 'example')}
-                  >
-                    {copiedCode === 'example' ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </Button>
-                  
-                  <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
-                    <code>{codeExamples[selectedLanguage as keyof typeof codeExamples]}</code>
-                  </pre>
-                </div>
-                
-                <div className="mt-4 flex gap-2">
-                  <Button>
-                    <Play className="w-4 h-4 mr-2" />
-                    تشغيل المثال
-                  </Button>
-                  <Button variant="outline">
-                    <FileText className="w-4 h-4 mr-2" />
-                    عرض المزيد من الأمثلة
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          <TabsContent value="webhooks">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Cloud className="w-5 h-5" />
-                  تكامل Webhooks
-                </CardTitle>
-                <CardDescription>استقبال الإشعارات في الوقت الفعلي</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
+        <TabsContent value="keys">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="w-5 h-5" />
+                إدارة مفاتيح API
+              </CardTitle>
+              <CardDescription>مفاتيح API محفوظة في قاعدة البيانات</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Create new key */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newKeyName}
+                  onChange={(e) => setNewKeyName(e.target.value)}
+                  placeholder="اسم المفتاح الجديد..."
+                  className="flex-1 p-2 border rounded-lg"
+                />
+                <Button onClick={handleCreateKey} disabled={!newKeyName.trim()}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  إنشاء مفتاح
+                </Button>
+              </div>
+
+              {/* Existing keys */}
+              <div className="space-y-2">
+                {apiKeys.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">لا توجد مفاتيح API</p>
+                ) : (
+                  apiKeys.map((apiKey) => (
+                    <div key={apiKey.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <span className="font-medium">{apiKey.name}</span>
+                        <code className="text-sm bg-gray-100 px-2 py-1 rounded mr-2">{apiKey.key}</code>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={apiKey.active ? 'default' : 'secondary'}>
+                          {apiKey.active ? 'نشط' : 'ملغى'}
+                        </Badge>
+                        {apiKey.active && (
+                          <Button variant="outline" size="sm" onClick={() => handleRevokeKey(apiKey.id)}>
+                            إلغاء
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="examples">
+          <Card>
+            <CardHeader>
+              <CardTitle>أمثلة برمجية</CardTitle>
+              <CardDescription>أكواد جاهزة تعمل مع API الحقيقي</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4 flex gap-2">
+                {Object.keys(codeExamples).map((lang) => (
+                  <Button
+                    key={lang}
+                    variant={selectedLanguage === lang ? 'default' : 'outline'}
+                    onClick={() => setSelectedLanguage(lang)}
+                  >
+                    {lang.charAt(0).toUpperCase() + lang.slice(1)}
+                  </Button>
+                ))}
+              </div>
+
+              <div className="relative">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="absolute top-2 left-2 z-10"
+                  onClick={() => copyToClipboard(codeExamples[selectedLanguage], 'example')}
+                >
+                  {copiedCode === 'example' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </Button>
+                <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
+                  <code>{codeExamples[selectedLanguage]}</code>
+                </pre>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="webhooks">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Cloud className="w-5 h-5" />
+                تكامل Webhooks
+              </CardTitle>
+              <CardDescription>Webhooks محفوظة في قاعدة البيانات</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {/* Create new webhook */}
+                <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                  <h3 className="font-semibold">إضافة Webhook جديد</h3>
                   <div>
-                    <h3 className="font-semibold mb-3">إعداد Webhook</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <div className="space-y-3">
-                        <div>
-                          <label className="block text-sm font-medium mb-1">رابط Webhook</label>
+                    <label className="block text-sm font-medium mb-1">رابط Webhook</label>
+                    <input
+                      type="url"
+                      value={webhookUrl}
+                      onChange={(e) => setWebhookUrl(e.target.value)}
+                      className="w-full p-2 border rounded-lg"
+                      placeholder="https://your-app.com/webhook"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">الأحداث المطلوبة</label>
+                    <div className="space-y-2">
+                      {['model.training.completed', 'model.prediction.ready', 'alert.created', 'system.maintenance'].map((event) => (
+                        <label key={event} className="flex items-center gap-2">
                           <input
-                            type="url"
-                            className="w-full p-2 border rounded-lg"
-                            placeholder="https://your-app.com/webhook"
+                            type="checkbox"
+                            className="rounded"
+                            checked={webhookEvents.includes(event)}
+                            onChange={() => toggleWebhookEvent(event)}
                           />
-                        </div>
+                          <span className="text-sm">{event}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <Button onClick={handleSaveWebhook} disabled={!webhookUrl.trim() || webhookEvents.length === 0}>
+                    حفظ Webhook
+                  </Button>
+                </div>
+
+                {/* Existing webhooks */}
+                {webhooks.length > 0 && (
+                  <div className="space-y-2">
+                    <h3 className="font-semibold">Webhooks المسجلة</h3>
+                    {webhooks.map((wh) => (
+                      <div key={wh.id} className="flex items-center justify-between p-3 border rounded-lg">
                         <div>
-                          <label className="block text-sm font-medium mb-1">الأحداث المطلوبة</label>
-                          <div className="space-y-2">
-                            {['model.training.completed', 'model.prediction.ready', 'system.maintenance'].map((event) => (
-                              <label key={event} className="flex items-center gap-2">
-                                <input type="checkbox" className="rounded" />
-                                <span className="text-sm">{event}</span>
-                              </label>
+                          <code className="text-sm">{wh.url}</code>
+                          <div className="flex gap-1 mt-1">
+                            {wh.events.map((e) => (
+                              <Badge key={e} variant="outline" className="text-xs">{e}</Badge>
                             ))}
                           </div>
                         </div>
-                        <Button>حفظ الإعدادات</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleDeleteWebhook(wh.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
-                    </div>
+                    ))}
                   </div>
-                  
-                  <div>
-                    <h3 className="font-semibold mb-3">مثال على استقبال Webhook</h3>
-                    <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto">
-                      <code>{`// مثال باستخدام Node.js و Express
-app.post('/webhook', (req, res) => {
-  const event = req.headers['x-event-type'];
-  const data = req.body;
-  
-  console.log('Received event:', event);
-  console.log('Data:', data);
-  
-  // معالجة الحدث هنا
-  
-  res.status(200).send('OK');
-});`}</code>
-                    </pre>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
-  )
-}
-
-function Clock({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
   )
 }

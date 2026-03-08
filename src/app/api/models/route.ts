@@ -1,71 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server'
-import ZAI from 'z-ai-web-dev-sdk'
+import {
+  getAllModels,
+  getModelBySlug,
+  createModel,
+  updateModel,
+  getModelMetrics,
+  createMetric,
+  getDashboardStats,
+} from '@/lib/models'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const zai = await ZAI.create()
+    const { searchParams } = new URL(request.url)
+    const slug = searchParams.get('slug')
+    const stats = searchParams.get('stats')
+    const metricsFor = searchParams.get('metrics')
 
-    // الحصول على قائمة النماذج المتاحة
-    const models = [
-      {
-        id: 'neuralchat-x',
-        name: 'NeuralChat-X',
-        type: 'language',
-        status: 'active',
-        accuracy: 94,
-        performance: 88,
-        customization: 95,
-        openSource: true,
-        description: 'نموذج لغوي متقدم مع دعم متعدد اللغات',
-        capabilities: ['text-generation', 'translation', 'summarization', 'question-answering'],
-        languages: ['ar', 'en', 'fr', 'es', 'de', 'zh'],
-        maxTokens: 4096,
-        version: '1.2.0'
-      },
-      {
-        id: 'visionai-pro',
-        name: 'VisionAI-Pro',
-        type: 'vision',
-        status: 'active',
-        accuracy: 91,
-        performance: 85,
-        customization: 88,
-        openSource: true,
-        description: 'نموذج رؤية حاسوبية عالي الدقة',
-        capabilities: ['image-classification', 'object-detection', 'image-segmentation', 'face-recognition'],
-        supportedFormats: ['jpg', 'png', 'webp', 'gif'],
-        maxImageSize: '10MB',
-        version: '2.1.0'
-      },
-      {
-        id: 'multimind-fusion',
-        name: 'MultiMind-Fusion',
-        type: 'multimodal',
-        status: 'training',
-        accuracy: 89,
-        performance: 82,
-        customization: 92,
-        openSource: true,
-        description: 'نموذج متعدد الوسائط متكامل',
-        capabilities: ['text-image-generation', 'visual-question-answering', 'image-captioning', 'multimodal-reasoning'],
-        languages: ['ar', 'en', 'fr', 'es'],
-        maxTokens: 2048,
-        version: '1.0.0-beta'
+    if (stats === 'true') {
+      const dashboardStats = await getDashboardStats()
+      return NextResponse.json({
+        success: true,
+        data: dashboardStats,
+        timestamp: new Date().toISOString(),
+      })
+    }
+
+    if (metricsFor) {
+      const metrics = await getModelMetrics(
+        metricsFor === 'all' ? undefined : metricsFor,
+        50
+      )
+      return NextResponse.json({
+        success: true,
+        data: metrics,
+        timestamp: new Date().toISOString(),
+      })
+    }
+
+    if (slug) {
+      const model = await getModelBySlug(slug)
+      if (!model) {
+        return NextResponse.json(
+          { success: false, error: 'Model not found' },
+          { status: 404 }
+        )
       }
-    ]
+      return NextResponse.json({
+        success: true,
+        data: model,
+        timestamp: new Date().toISOString(),
+      })
+    }
 
+    const models = await getAllModels()
     return NextResponse.json({
       success: true,
       data: models,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     })
-
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : 'Failed to fetch models'
     console.error('Error fetching models:', error)
-    return NextResponse.json({
-      success: false,
-      error: error.message || 'Failed to fetch models'
-    }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 }
+    )
   }
 }
 
@@ -74,105 +74,83 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { action, modelId, config } = body
 
-    const zai = await ZAI.create()
-
     switch (action) {
-      case 'create':
-        // إنشاء نموذج جديد
-        const newModel = {
-          id: `model-${Date.now()}`,
+      case 'create': {
+        if (!config?.name || !config?.type || !config?.description) {
+          return NextResponse.json(
+            { success: false, error: 'name, type, and description are required' },
+            { status: 400 }
+          )
+        }
+        const slug = config.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+        const newModel = await createModel({
+          slug,
           name: config.name,
           type: config.type,
-          status: 'training',
-          accuracy: 0,
-          performance: 0,
-          customization: 100,
-          openSource: config.openSource || true,
           description: config.description,
-          capabilities: config.capabilities || [],
-          version: '1.0.0',
-          createdAt: new Date().toISOString()
-        }
-
+          capabilities: config.capabilities,
+          languages: config.languages,
+          openSource: config.openSource,
+          maxTokens: config.maxTokens,
+        })
         return NextResponse.json({
           success: true,
           data: newModel,
-          message: 'Model created successfully'
+          message: 'Model created successfully',
         })
+      }
 
-      case 'train':
-        // بدء تدريب النموذج
-        const trainingResponse = await zai.chat.completions.create({
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an AI training assistant. Help configure and start model training.'
-            },
-            {
-              role: 'user',
-              content: `Start training for model ${modelId} with the following configuration: ${JSON.stringify(config)}`
-            }
-          ]
-        })
-
-        return NextResponse.json({
-          success: true,
-          data: {
-            modelId,
-            trainingId: `training-${Date.now()}`,
-            status: 'started',
-            estimatedTime: '2-4 hours',
-            config
-          },
-          message: 'Training started successfully'
-        })
-
-      case 'evaluate':
-        // تقييم أداء النموذج
-        const evaluationResponse = await zai.chat.completions.create({
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an AI model evaluator. Analyze model performance and provide metrics.'
-            },
-            {
-              role: 'user',
-              content: `Evaluate model ${modelId} performance and provide accuracy, speed, and efficiency metrics.`
-            }
-          ]
-        })
-
-        const evaluation = {
-          modelId,
-          accuracy: 85 + Math.random() * 15,
-          speed: 70 + Math.random() * 30,
-          efficiency: 80 + Math.random() * 20,
-          recommendations: [
-            'Consider optimizing for better memory usage',
-            'Fine-tune hyperparameters for improved accuracy',
-            'Implement batch processing for better throughput'
-          ],
-          timestamp: new Date().toISOString()
+      case 'update': {
+        if (!modelId) {
+          return NextResponse.json(
+            { success: false, error: 'modelId is required' },
+            { status: 400 }
+          )
         }
-
+        const updated = await updateModel(modelId, config)
         return NextResponse.json({
           success: true,
-          data: evaluation,
-          message: 'Model evaluation completed'
+          data: updated,
+          message: 'Model updated successfully',
         })
+      }
+
+      case 'record-metric': {
+        if (!modelId) {
+          return NextResponse.json(
+            { success: false, error: 'modelId is required' },
+            { status: 400 }
+          )
+        }
+        await createMetric({
+          modelId,
+          accuracy: config.accuracy ?? 0,
+          responseTime: config.responseTime ?? 0,
+          throughput: config.throughput ?? 0,
+          cpuUsage: config.cpuUsage ?? 0,
+          memoryUsage: config.memoryUsage ?? 0,
+          errorRate: config.errorRate ?? 0,
+          activeUsers: config.activeUsers ?? 0,
+        })
+        return NextResponse.json({
+          success: true,
+          message: 'Metric recorded',
+        })
+      }
 
       default:
-        return NextResponse.json({
-          success: false,
-          error: 'Invalid action specified'
-        }, { status: 400 })
+        return NextResponse.json(
+          { success: false, error: 'Invalid action. Use: create, update, record-metric' },
+          { status: 400 }
+        )
     }
-
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : 'Internal server error'
     console.error('Error in models API:', error)
-    return NextResponse.json({
-      success: false,
-      error: error.message || 'Internal server error'
-    }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 }
+    )
   }
 }
