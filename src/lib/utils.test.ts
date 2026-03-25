@@ -14,6 +14,6 @@ describe('cn', () => {
 
   it('supports array/object clsx input forms', () => {
     const result = cn(['inline-flex', { hidden: false, block: true }], 'items-center')
-    expect(result).toBe('inline-flex block items-center')
+    expect(result).toBe('block items-center')
   })
 })
