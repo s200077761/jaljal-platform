@@ -16,4 +16,9 @@ describe('cn', () => {
     const result = cn(['inline-flex', { hidden: false, block: true }], 'items-center')
     expect(result).toBe('block items-center')
   })
+
+  it('keeps static classes from array input when there are no conditional conflicts', () => {
+    const result = cn(['inline-flex', 'items-center'])
+    expect(result).toBe('inline-flex items-center')
+  })
 })

@@ -75,7 +75,7 @@ describe('models db-backed logic', () => {
         description: 'desc',
         version: '1.0.0',
         capabilities: '["chat","reasoning"]',
-        languages: 'invalid-json',
+        languages: 'malformed-json',
         maxTokens: 4096,
         createdAt: now,
         updatedAt: now,
